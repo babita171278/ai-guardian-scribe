@@ -61,6 +61,12 @@ All colors MUST be HSL.
     --shadow-md: 0 4px 6px -1px hsl(240 3.7% 15.9% / 0.1), 0 2px 4px -1px hsl(240 3.7% 15.9% / 0.06);
     --shadow-lg: 0 10px 15px -3px hsl(240 3.7% 15.9% / 0.1), 0 4px 6px -2px hsl(240 3.7% 15.9% / 0.05);
     --shadow-glow: 0 0 0 1px hsl(262 83% 58% / 0.05), 0 1px 3px 0 hsl(262 83% 58% / 0.1), 0 1px 2px 0 hsl(262 83% 58% / 0.06);
+    --shadow-elegant: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+    
+    /* Explainability specific colors */
+    --explainability-primary: 220 90% 60%;
+    --explainability-secondary: 260 90% 65%;
+    --border-gradient: linear-gradient(135deg, hsl(var(--primary) / 0.3), hsl(var(--explainability-secondary) / 0.3));
 
     --radius: 0.75rem;
 

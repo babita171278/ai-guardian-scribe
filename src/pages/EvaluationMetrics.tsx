@@ -103,7 +103,8 @@ export default function EvaluationMetrics() {
         case "pii-leakage":
           result = await apiService.evaluatePiiLeakage({
             ai_output: aiOutput,
-            user_input: userInput
+            user_input: userInput,
+            sensitivity: sensitivity
           });
           setResults(prev => ({ ...prev, piiLeakage: result }));
           break;
@@ -111,7 +112,8 @@ export default function EvaluationMetrics() {
         case "toxicity":
           result = await apiService.evaluateToxicity({
             ai_output: aiOutput,
-            user_input: userInput
+            user_input: userInput,
+            sensitivity: sensitivity
           });
           setResults(prev => ({ ...prev, toxicity: result }));
           break;

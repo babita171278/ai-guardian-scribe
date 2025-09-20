@@ -8,7 +8,8 @@ import {
   FileText, 
   Settings,
   Brain,
-  Lock
+  Lock,
+  Eye
 } from "lucide-react";
 
 const navigation = [
@@ -31,6 +32,11 @@ const navigation = [
     name: "AI Chatbot",
     href: "/chat",
     icon: MessageSquare,
+  },
+  {
+    name: "AI Explainability",
+    href: "/explainability",
+    icon: Eye,
   },
   {
     name: "Alert Center",

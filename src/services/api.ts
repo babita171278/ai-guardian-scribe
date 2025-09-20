@@ -4,12 +4,33 @@ import {
   AnswerRelevancyResult,
   BiasRequest,
   BiasEvaluationResult,
+  FaithfulnessRequest,
+  FaithfulnessResult,
+  HallucinationRequest,
+  HallucinationResult,
+  PiiLeakageRequest,
+  PiiLeakageResult,
+  ToxicityRequest,
+  ToxicityResult,
   CybersecurityInputRequest,
   CybersecurityInputResult,
   ChatRequest,
   EvaluationMetric,
   GuardrailType,
-  SensitivityLevel
+  SensitivityLevel,
+  ExplainabilityModelsResponse,
+  ExplainabilityAnalysisRequest,
+  ExplainabilityAnalysisResult,
+  OpikAnswerRelevanceRequest,
+  OpikAnswerRelevanceResult,
+  OpikContextPrecisionRequest,
+  OpikContextPrecisionResult,
+  OpikHallucinationRequest,
+  OpikHallucinationResult,
+  OpikModerationRequest,
+  OpikModerationResult,
+  OpikUsefulnessRequest,
+  OpikUsefulnessResult
 } from "@/types/api";
 
 class ApiService {
@@ -44,36 +65,20 @@ class ApiService {
     return this.makeRequest<BiasEvaluationResult>('/deepeval/bias', data);
   }
 
-  async evaluateFaithfulness(data: {
-    actual_output: string;
-    retrieval_context: string;
-    user_input?: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/deepeval/faithfulness', data);
+  async evaluateFaithfulness(data: FaithfulnessRequest): Promise<FaithfulnessResult> {
+    return this.makeRequest<FaithfulnessResult>('/deepeval/faithfulness', data);
   }
 
-  async evaluateHallucination(data: {
-    actual_output: string;
-    contexts: string[];
-    user_input?: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/deepeval/hallucination', data);
+  async evaluateHallucination(data: HallucinationRequest): Promise<HallucinationResult> {
+    return this.makeRequest<HallucinationResult>('/deepeval/hallucination', data);
   }
 
-  async evaluatePiiLeakage(data: {
-    ai_output: string;
-    user_input?: string;
-  }) {
-    return this.makeRequest('/deepeval/pii-leakage', data);
+  async evaluatePiiLeakage(data: PiiLeakageRequest): Promise<PiiLeakageResult> {
+    return this.makeRequest<PiiLeakageResult>('/deepeval/pii-leakage', data);
   }
 
-  async evaluateToxicity(data: {
-    ai_output: string;
-    user_input?: string;
-  }) {
-    return this.makeRequest('/deepeval/toxicity', data);
+  async evaluateToxicity(data: ToxicityRequest): Promise<ToxicityResult> {
+    return this.makeRequest<ToxicityResult>('/deepeval/toxicity', data);
   }
 
   // Guardrails
@@ -155,23 +160,12 @@ class ApiService {
   }
 
   // Opik Eval endpoints
-  async evaluateAnswerRelevance(data: {
-    user_input: string;
-    ai_output: string;
-    context?: string[];
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/answer-relevance', data);
+  async evaluateAnswerRelevance(data: OpikAnswerRelevanceRequest): Promise<OpikAnswerRelevanceResult> {
+    return this.makeRequest<OpikAnswerRelevanceResult>('/opikeval/answer-relevance', data);
   }
 
-  async evaluateContextPrecision(data: {
-    input: string;
-    expected_output: string;
-    context: string;
-    output: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/context-precision', data);
+  async evaluateContextPrecision(data: OpikContextPrecisionRequest): Promise<OpikContextPrecisionResult> {
+    return this.makeRequest<OpikContextPrecisionResult>('/opikeval/context-precision', data);
   }
 
   async evaluateContextRecall(data: {
@@ -184,27 +178,42 @@ class ApiService {
     return this.makeRequest('/opikeval/context-recall', data);
   }
 
-  async evaluateOpikHallucination(data: {
-    output: string;
-    context: string[];
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/hallucination', data);
+  async evaluateOpikHallucination(data: OpikHallucinationRequest): Promise<OpikHallucinationResult> {
+    return this.makeRequest<OpikHallucinationResult>('/opikeval/hallucination', data);
   }
 
-  async moderateContent(data: {
-    text: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/moderation', data);
+  async moderateContent(data: OpikModerationRequest): Promise<OpikModerationResult> {
+    return this.makeRequest<OpikModerationResult>('/opikeval/moderation', data);
   }
 
-  async evaluateUsefulness(data: {
-    user_input: string;
-    ai_output: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/usefulness', data);
+  async evaluateUsefulness(data: OpikUsefulnessRequest): Promise<OpikUsefulnessResult> {
+    return this.makeRequest<OpikUsefulnessResult>('/opikeval/usefulness', data);
+  }
+
+  // Explainability endpoints
+  async getExplainabilityModels(): Promise<ExplainabilityModelsResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/explainability/models`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API request failed for /explainability/models:', error);
+      throw error;
+    }
+  }
+
+  async runCompleteAnalysis(data: ExplainabilityAnalysisRequest): Promise<ExplainabilityAnalysisResult> {
+    return this.makeRequest<ExplainabilityAnalysisResult>('/explainability/complete-analysis', data);
   }
 }
 

@@ -63,6 +63,10 @@ export default {
         good: "hsl(var(--good))",
         fair: "hsl(var(--fair))",
         poor: "hsl(var(--poor))",
+        'metric-excellent': "hsl(var(--excellent))",
+        'metric-good': "hsl(var(--good))",
+        'metric-fair': "hsl(var(--fair))",
+        'metric-poor': "hsl(var(--poor))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -96,10 +100,32 @@ export default {
             height: "0",
           },
         },
+        "fade-in": {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(10px)"
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0)"
+          }
+        },
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-10px)" }
+        }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.3s ease-out",
+        "float": "float 6s ease-in-out infinite",
+      },
+      backgroundImage: {
+        'gradient-primary': 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))',
+      },
+      boxShadow: {
+        'elegant': '0 10px 30px -10px hsl(var(--primary) / 0.3)',
       },
     },
   },
