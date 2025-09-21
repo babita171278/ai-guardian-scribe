@@ -38,26 +38,6 @@ const navigation = [
     href: "/explainability",
     icon: Eye,
   },
-  {
-    name: "Alert Center",
-    href: "/alerts",
-    icon: AlertCircle,
-  },
-  {
-    name: "Reports",
-    href: "/reports",
-    icon: FileText,
-  },
-  {
-    name: "Security Settings",
-    href: "/security",
-    icon: Lock,
-  },
-  {
-    name: "Settings",
-    href: "/settings", 
-    icon: Settings,
-  },
 ];
 
 export function Sidebar() {

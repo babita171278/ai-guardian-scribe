@@ -20,6 +20,13 @@ interface EvaluationResults {
   hallucination?: any;
   piiLeakage?: any;
   toxicity?: any;
+  // OpikEval results
+  opikAnswerRelevance?: any;
+  opikContextPrecision?: any;
+  opikContextRecall?: any;
+  opikHallucination?: any;
+  opikModeration?: any;
+  opikUsefulness?: any;
 }
 
 export default function EvaluationMetrics() {
@@ -135,6 +142,119 @@ export default function EvaluationMetrics() {
     }
   };
 
+  const runOpikEvaluation = async (metricType: string, apiMethod: string) => {
+    if (!userInput.trim() || !aiOutput.trim()) {
+      toast({
+        title: "Missing Input",
+        description: "Please provide both user input and AI output.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let result;
+      
+      switch (metricType) {
+        case "answer-relevance":
+          result = await apiService.evaluateAnswerRelevance({
+            user_input: userInput,
+            ai_output: aiOutput,
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikAnswerRelevance: result }));
+          break;
+          
+        case "context-precision":
+          if (!context.trim()) {
+            toast({
+              title: "Missing Context",
+              description: "Context is required for context precision evaluation.",
+              variant: "destructive",
+            });
+            return;
+          }
+          result = await apiService.evaluateContextPrecision({
+            input: userInput,
+            expected_output: "Expected output based on context",
+            context: context,
+            output: aiOutput,
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikContextPrecision: result }));
+          break;
+          
+        case "context-recall":
+          if (!context.trim()) {
+            toast({
+              title: "Missing Context",
+              description: "Context is required for context recall evaluation.",
+              variant: "destructive",
+            });
+            return;
+          }
+          result = await apiService.evaluateContextRecall({
+            input: userInput,
+            expected_output: "Expected output based on context",
+            context: context,
+            output: aiOutput,
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikContextRecall: result }));
+          break;
+          
+        case "hallucination":
+          if (!context.trim()) {
+            toast({
+              title: "Missing Context",
+              description: "Context is required for hallucination evaluation.",
+              variant: "destructive",
+            });
+            return;
+          }
+          result = await apiService.evaluateOpikHallucination({
+            output: aiOutput,
+            context: [context],
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikHallucination: result }));
+          break;
+          
+        case "moderation":
+          result = await apiService.moderateContent({
+            text: aiOutput,
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikModeration: result }));
+          break;
+          
+        case "usefulness":
+          result = await apiService.evaluateUsefulness({
+            user_input: userInput,
+            ai_output: aiOutput,
+            sensitivity
+          });
+          setResults(prev => ({ ...prev, opikUsefulness: result }));
+          break;
+      }
+
+      toast({
+        title: "Evaluation Complete",
+        description: `OpikEval ${metricType} evaluation completed successfully.`,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Evaluation Failed",
+        description: error.message || "Failed to run evaluation.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getLevelColor = (level: string) => {
     switch (level?.toLowerCase()) {
       case "excellent": return "bg-excellent text-success-foreground";
@@ -147,8 +267,18 @@ export default function EvaluationMetrics() {
 
   const shouldShowAlert = (result: any) => {
     if (!result) return false;
-    const level = result.relevancy_level || result.bias_level || result.faithfulness_level;
+    const level = result.relevancy_level || result.bias_level || result.faithfulness_level || 
+                  result.hallucination_level || result.privacy_level || result.toxicity_level ||
+                  result.recall_level || result.precision_level || result.usefulness_level || 
+                  result.safety_level || result.faithfulness_level;
     return level === "poor" || level === "fair";
+  };
+
+  const getResultLevel = (result: any) => {
+    return result.relevancy_level || result.bias_level || result.faithfulness_level || 
+           result.hallucination_level || result.privacy_level || result.toxicity_level ||
+           result.recall_level || result.precision_level || result.usefulness_level || 
+           result.safety_level || result.faithfulness_level || "N/A";
   };
 
   return (
@@ -267,12 +397,19 @@ export default function EvaluationMetrics() {
                           {result && (
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
-                                <Badge className={getLevelColor(result.relevancy_level || result.bias_level || result.faithfulness_level)}>
-                                  {result.relevancy_level || result.bias_level || result.faithfulness_level || "N/A"}
+                                <Badge className={getLevelColor(getResultLevel(result))}>
+                                  {getResultLevel(result)}
                                 </Badge>
-                                {result.relevancy_percentage !== undefined && (
+                                {(result.relevancy_percentage !== undefined || 
+                                  result.bias_percentage !== undefined ||
+                                  result.faithfulness_percentage !== undefined ||
+                                  result.hallucination_percentage !== undefined ||
+                                  result.privacy_percentage !== undefined ||
+                                  result.toxicity_percentage !== undefined) && (
                                   <span className="text-sm text-muted-foreground">
-                                    {result.relevancy_percentage}%
+                                    {result.relevancy_percentage || result.bias_percentage || 
+                                     result.faithfulness_percentage || result.hallucination_percentage ||
+                                     result.privacy_percentage || result.toxicity_percentage}%
                                   </span>
                                 )}
                               </div>
@@ -281,9 +418,9 @@ export default function EvaluationMetrics() {
                               {shouldShowAlert(result) && (
                                 <AlertCard
                                   type="evaluation"
-                                  severity={result.relevancy_level === "poor" ? "high" : "medium"}
+                                  severity={getResultLevel(result) === "poor" ? "high" : "medium"}
                                   title={`${label} Alert`}
-                                  description={`Evaluation scored: ${result.relevancy_level || result.bias_level || result.faithfulness_level}`}
+                                  description={`Evaluation scored: ${getResultLevel(result)}`}
                                   timestamp="Just now"
                                 />
                               )}
@@ -297,24 +434,51 @@ export default function EvaluationMetrics() {
                   <TabsContent value="opikeval" className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       {[
-                        "Answer Relevance",
-                        "Context Precision", 
-                        "Context Recall",
-                        "Hallucination",
-                        "Moderation",
-                        "Usefulness"
-                      ].map((metric) => (
-                        <Card key={metric} className="p-4">
+                        { key: "answer-relevance", label: "Answer Relevance", result: results.opikAnswerRelevance, api: "evaluateAnswerRelevance" },
+                        { key: "context-precision", label: "Context Precision", result: results.opikContextPrecision, api: "evaluateContextPrecision" },
+                        { key: "context-recall", label: "Context Recall", result: results.opikContextRecall, api: "evaluateContextRecall" },
+                        { key: "hallucination", label: "Hallucination", result: results.opikHallucination, api: "evaluateOpikHallucination" },
+                        { key: "moderation", label: "Moderation", result: results.opikModeration, api: "moderateContent" },
+                        { key: "usefulness", label: "Usefulness", result: results.opikUsefulness, api: "evaluateUsefulness" }
+                      ].map(({ key, label, result, api }) => (
+                        <Card key={key} className="p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium">{metric}</h4>
-                            <Button size="sm" disabled>
+                            <h4 className="font-medium">{label}</h4>
+                            <Button
+                              size="sm"
+                              onClick={() => runOpikEvaluation(key, api)}
+                              disabled={loading}
+                            >
                               <Play className="h-3 w-3 mr-1" />
                               Run
                             </Button>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            OpikEval integration coming soon...
-                          </p>
+                          
+                          {result && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className={getLevelColor(getResultLevel(result))}>
+                                  {getResultLevel(result)}
+                                </Badge>
+                                {result.score !== undefined && (
+                                  <span className="text-sm text-muted-foreground">
+                                    {result.score}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">{result.reason}</p>
+                              
+                              {shouldShowAlert(result) && (
+                                <AlertCard
+                                  type="evaluation"
+                                  severity={getResultLevel(result) === "poor" ? "high" : "medium"}
+                                  title={`${label} Alert`}
+                                  description={`Evaluation scored: ${getResultLevel(result)}`}
+                                  timestamp="Just now"
+                                />
+                              )}
+                            </div>
+                          )}
                         </Card>
                       ))}
                     </div>

@@ -17,15 +17,10 @@ export function Header() {
           </Badge>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Activity className="h-4 w-4 text-success" />
-            <span>API Status: Connected</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <span>Active Monitoring</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            Beta
+          </Badge>
         </div>
       </div>
     </header>

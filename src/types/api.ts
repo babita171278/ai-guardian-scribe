@@ -288,6 +288,21 @@ export interface OpikHallucinationResult {
   reason: string[];
 }
 
+export interface OpikContextRecallRequest {
+  input: string;
+  expected_output: string;
+  context: string;
+  output: string;
+  sensitivity: SensitivityLevel;
+}
+
+export interface OpikContextRecallResult {
+  context_recall_score: number;
+  recall_level: RelevancyLevel;
+  reason: string;
+  sensitivity_level: SensitivityLevel;
+}
+
 export interface OpikModerationRequest {
   text: string;
   sensitivity: SensitivityLevel;

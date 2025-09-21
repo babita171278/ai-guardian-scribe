@@ -30,7 +30,9 @@ import {
   OpikModerationRequest,
   OpikModerationResult,
   OpikUsefulnessRequest,
-  OpikUsefulnessResult
+  OpikUsefulnessResult,
+  OpikContextRecallRequest,
+  OpikContextRecallResult
 } from "@/types/api";
 
 class ApiService {
@@ -168,14 +170,8 @@ class ApiService {
     return this.makeRequest<OpikContextPrecisionResult>('/opikeval/context-precision', data);
   }
 
-  async evaluateContextRecall(data: {
-    input: string;
-    expected_output: string;
-    context: string;
-    output: string;
-    sensitivity: SensitivityLevel;
-  }) {
-    return this.makeRequest('/opikeval/context-recall', data);
+  async evaluateContextRecall(data: OpikContextRecallRequest): Promise<OpikContextRecallResult> {
+    return this.makeRequest<OpikContextRecallResult>('/opikeval/context-recall', data);
   }
 
   async evaluateOpikHallucination(data: OpikHallucinationRequest): Promise<OpikHallucinationResult> {
