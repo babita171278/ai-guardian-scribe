@@ -35,6 +35,8 @@ interface Message {
     title: string;
     description: string;
     details: string[];
+    source?: "input" | "output";
+    guardrailType?: string;
   }>;
 }
 
@@ -63,34 +65,60 @@ export default function ChatBot() {
     scrollToBottom();
   }, [messages]);
 
+  // Simple markdown renderer for basic formatting
+  const renderMarkdown = (text: string) => {
+    return text
+      // Bold text **text** or __text__
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      .replace(/__(.*?)__/g, '<strong class="font-semibold">$1</strong>')
+      // Italic text *text* or _text_
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      .replace(/_(.*?)_/g, '<em class="italic">$1</em>')
+      // Code `code`
+      .replace(/`(.*?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm font-mono">$1</code>')
+      // Line breaks
+      .replace(/\n\n/g, '</p><p class="mb-2">')
+      .replace(/\n/g, '<br />')
+      // Lists (basic support)
+      .replace(/^\* (.*$)/gim, '<li class="ml-4">$1</li>')
+      .replace(/(<li.*<\/li>)/s, '<ul class="list-disc list-inside space-y-1 my-2">$1</ul>');
+  };
+
   const runGuardrailChecks = async (input: string, output?: string) => {
     const results = [];
     const alerts = [];
 
+    console.log(`Running guardrail checks for: ${selectedGuardrails.join(', ')}`);
+
     for (const guardrailType of selectedGuardrails) {
       try {
-        let result;
+        console.log(`Processing ${guardrailType} guardrail...`);
+        let inputResult, outputResult;
         
         switch (guardrailType) {
           case "cybersecurity":
-            result = await apiService.scanCybersecurityInput({
+            // Input scan
+            inputResult = await apiService.scanCybersecurityInput({
               input_text: input,
               categories: ["SQL injection", "Shell injection", "XSS", "Command injection"],
               sensitivity,
             });
             
-            if ((result as any).safety_level === "unsafe") {
+            if ((inputResult as any).safety_level === "unsafe") {
               alerts.push({
                 type: "vulnerability" as const,
                 severity: "high" as const,
                 title: "Cybersecurity Threat Detected",
-                description: (result as any).reason,
-                details: (result as any).threats_detected || [],
+                description: (inputResult as any).reason,
+                details: (inputResult as any).threats_detected || [],
+                source: "input",
+                guardrailType: "cybersecurity"
               });
             }
             
+            // Output scan (only if output exists)
             if (output) {
-              const outputResult = await apiService.scanCybersecurityOutput({
+              outputResult = await apiService.scanCybersecurityOutput({
                 input_text: input,
                 output_text: output,
                 categories: ["Information Disclosure", "Credential Leakage"],
@@ -104,85 +132,189 @@ export default function ChatBot() {
                   title: "Output Security Risk",
                   description: (outputResult as any).reason,
                   details: (outputResult as any).threats_detected || [],
+                  source: "output",
+                  guardrailType: "cybersecurity"
                 });
               }
             }
             break;
 
           case "illegal":
-            result = await apiService.scanIllegalInput({
+            inputResult = await apiService.scanIllegalInput({
               input_text: input,
               sensitivity,
             });
             
-            if ((result as any).safety_level === "unsafe") {
+            console.log(`Illegal input result:`, (inputResult as any).safety_level);
+            
+            if ((inputResult as any).safety_level === "unsafe") {
               alerts.push({
                 type: "guardrail" as const,
                 severity: "high" as const,
                 title: "Illegal Content Detected",
-                description: (result as any).reason,
-                details: (result as any).illegal_categories || [],
+                description: (inputResult as any).reason,
+                details: (inputResult as any).illegal_categories || [],
+                source: "input",
+                guardrailType: "illegal"
               });
+            }
+
+            if (output) {
+              outputResult = await apiService.scanIllegalOutput({
+                input_text: input,
+                output_text: output,
+                sensitivity,
+              });
+              
+              console.log(`Illegal output result:`, (outputResult as any).safety_level);
+              
+              if ((outputResult as any).safety_level === "unsafe") {
+                alerts.push({
+                  type: "guardrail" as const,
+                  severity: "high" as const,
+                  title: "Illegal Output Content Detected",
+                  description: (outputResult as any).reason,
+                  details: (outputResult as any).illegal_categories || [],
+                  source: "output",
+                  guardrailType: "illegal"
+                });
+              }
             }
             break;
 
           case "privacy":
-            result = await apiService.scanPrivacyInput({
+            inputResult = await apiService.scanPrivacyInput({
               input_text: input,
               sensitivity,
             });
             
-            if ((result as any).safety_level === "unsafe") {
+            console.log(`Privacy input result:`, (inputResult as any).safety_level);
+            
+            if ((inputResult as any).safety_level === "unsafe" || (inputResult as any).safety_level === "borderline") {
               alerts.push({
                 type: "guardrail" as const,
-                severity: "medium" as const,
+                severity: (inputResult as any).safety_level === "unsafe" ? "high" as const : "medium" as const,
                 title: "PII Detected",
-                description: (result as any).reason,
-                details: (result as any).pii_detected || [],
+                description: (inputResult as any).reason,
+                details: (inputResult as any).pii_detected || [],
+                source: "input",
+                guardrailType: "privacy"
               });
+            }
+
+            if (output) {
+              outputResult = await apiService.scanPrivacyOutput({
+                input_text: input,
+                output_text: output,
+                sensitivity,
+              });
+              
+              console.log(`Privacy output result:`, (outputResult as any).safety_level);
+              
+              if ((outputResult as any).safety_level === "unsafe" || (outputResult as any).safety_level === "borderline") {
+                alerts.push({
+                  type: "guardrail" as const,
+                  severity: (outputResult as any).safety_level === "unsafe" ? "high" as const : "medium" as const,
+                  title: "PII Detected in Output",
+                  description: (outputResult as any).reason,
+                  details: (outputResult as any).pii_detected || [],
+                  source: "output",
+                  guardrailType: "privacy"
+                });
+              }
             }
             break;
 
           case "prompt-injection":
-            result = await apiService.scanPromptInjectionInput({
+            inputResult = await apiService.scanPromptInjectionInput({
               input_text: input,
             });
             
-            if ((result as any).safety_level === "unsafe") {
+            if ((inputResult as any).safety_level === "unsafe") {
               alerts.push({
                 type: "vulnerability" as const,
                 severity: "high" as const,
                 title: "Prompt Injection Attempt",
-                description: (result as any).reason,
-                details: (result as any).injection_techniques || [],
+                description: (inputResult as any).reason,
+                details: (inputResult as any).injection_techniques || [],
+                source: "input",
+                guardrailType: "prompt-injection"
               });
+            }
+
+            if (output) {
+              outputResult = await apiService.scanPromptInjectionOutput({
+                input_text: input,
+                output_text: output,
+              });
+              
+              if ((outputResult as any).safety_level === "unsafe") {
+                alerts.push({
+                  type: "vulnerability" as const,
+                  severity: "high" as const,
+                  title: "Prompt Injection in Output",
+                  description: (outputResult as any).reason,
+                  details: (outputResult as any).injection_techniques || [],
+                  source: "output",
+                  guardrailType: "prompt-injection"
+                });
+              }
             }
             break;
 
           case "toxicity":
-            result = await apiService.scanToxicityInput({
+            inputResult = await apiService.scanToxicityInput({
               input_text: input,
               sensitivity,
             });
             
-            if ((result as any).safety_level === "unsafe") {
+            if ((inputResult as any).safety_level === "unsafe") {
               alerts.push({
                 type: "guardrail" as const,
                 severity: "medium" as const,
                 title: "Toxic Content Detected",
-                description: (result as any).reason,
-                details: (result as any).toxicity_categories || [],
+                description: (inputResult as any).reason,
+                details: (inputResult as any).toxicity_categories || [],
+                source: "input",
+                guardrailType: "toxicity"
               });
+            }
+
+            if (output) {
+              outputResult = await apiService.scanToxicityOutput({
+                input_text: input,
+                output_text: output,
+                sensitivity,
+              });
+              
+              if ((outputResult as any).safety_level === "unsafe") {
+                alerts.push({
+                  type: "guardrail" as const,
+                  severity: "medium" as const,
+                  title: "Toxic Content in Output",
+                  description: (outputResult as any).reason,
+                  details: (outputResult as any).toxicity_categories || [],
+                  source: "output",
+                  guardrailType: "toxicity"
+                });
+              }
             }
             break;
         }
         
-        results.push({ type: guardrailType, result });
+        results.push({ 
+          type: guardrailType, 
+          inputResult: inputResult || null,
+          outputResult: outputResult || null 
+        });
+        
+        console.log(`Completed ${guardrailType} guardrail. Alerts so far: ${alerts.length}`);
       } catch (error) {
         console.error(`Guardrail check failed for ${guardrailType}:`, error);
       }
     }
 
+    console.log(`Total alerts generated: ${alerts.length}`);
     return { results, alerts };
   };
 
@@ -200,19 +332,41 @@ export default function ChatBot() {
     setLoading(true);
 
     try {
-      // Run input guardrails first
-      const { alerts: inputAlerts } = await runGuardrailChecks(inputMessage);
+      // Get AI response first
+      const aiResponse = await apiService.chatWithGemini({
+        input_text: inputMessage,
+      });
+
+      // Run ALL guardrail checks ONCE (input + output together)
+      const { alerts: allAlerts } = await runGuardrailChecks(inputMessage, (aiResponse as any).response);
+
+      // Debug logging
+      console.log(`Total alerts found: ${allAlerts.length}`);
+      allAlerts.forEach((alert, index) => {
+        console.log(`Alert ${index + 1}: ${alert.guardrailType} - ${alert.title} (${alert.source})`);
+      });
+
+      // Check if we should block based on high-severity input alerts
+      const inputHighSeverityAlerts = allAlerts.filter(alert => 
+        alert.severity === "high" && alert.source === "input"
+      );
       
-      // If high-severity alerts, block the request
-      const hasBlockingAlerts = inputAlerts.some(alert => alert.severity === "high");
+      // Also check for borderline/medium severity privacy alerts for potential blocking
+      const inputPrivacyAlerts = allAlerts.filter(alert => 
+        alert.guardrailType === "privacy" && alert.source === "input" && 
+        (alert.severity === "medium" || alert.severity === "high")
+      );
       
-      if (hasBlockingAlerts) {
+      // Combine all blocking alerts
+      const blockingAlerts = [...inputHighSeverityAlerts, ...inputPrivacyAlerts];
+      
+      if (inputHighSeverityAlerts.length > 0) {
         const blockedMessage: Message = {
           id: Date.now().toString() + "-blocked",
           type: "bot",
           content: "⚠️ Message blocked due to security concerns. Please revise your input.",
           timestamp: new Date().toISOString(),
-          alerts: inputAlerts,
+          alerts: blockingAlerts,
         };
         
         setMessages(prev => [...prev, blockedMessage]);
@@ -228,28 +382,31 @@ export default function ChatBot() {
         return;
       }
 
-      // Get AI response
-      const aiResponse = await apiService.chatWithGemini({
-        input_text: inputMessage,
+      // Deduplicate alerts - only remove if EXACT same guardrail type, source, and description
+      const uniqueAlerts = allAlerts.filter((alert, index, self) => {
+        const isDuplicate = self.findIndex(a => 
+          a.guardrailType === alert.guardrailType && 
+          a.source === alert.source &&
+          a.title === alert.title &&
+          a.description === alert.description
+        ) !== index;
+        return !isDuplicate;
       });
-
-      // Run output guardrails
-      const { alerts: outputAlerts } = await runGuardrailChecks(inputMessage, (aiResponse as any).response);
 
       const botMessage: Message = {
         id: Date.now().toString() + "-bot",
         type: "bot",
         content: (aiResponse as any).response,
         timestamp: new Date().toISOString(),
-        alerts: [...inputAlerts, ...outputAlerts],
+        alerts: uniqueAlerts,
       };
 
       setMessages(prev => [...prev, botMessage]);
 
-      if (inputAlerts.length > 0 || outputAlerts.length > 0) {
+      if (uniqueAlerts.length > 0) {
         toast({
           title: "Security Alerts",
-          description: `${inputAlerts.length + outputAlerts.length} security issues detected.`,
+          description: `${uniqueAlerts.length} security issue${uniqueAlerts.length > 1 ? 's' : ''} detected.`,
           variant: "destructive",
         });
       }
@@ -416,7 +573,16 @@ export default function ChatBot() {
                                 ? "bg-primary text-primary-foreground" 
                                 : "bg-muted"
                             }`}>
-                              <p className="text-sm">{message.content}</p>
+                              {message.type === "user" ? (
+                                <p className="text-sm">{message.content}</p>
+                              ) : (
+                                <div 
+                                  className="text-sm prose prose-sm max-w-none"
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: renderMarkdown(message.content) 
+                                  }}
+                                />
+                              )}
                               <p className="text-xs opacity-70 mt-1">
                                 {new Date(message.timestamp).toLocaleTimeString()}
                               </p>
