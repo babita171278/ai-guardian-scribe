@@ -147,7 +147,7 @@ export default function EvaluationMetrics() {
     }
   };
 
-  const runOpikEvaluation = async (metricType: string, apiMethod: string) => {
+  const runOpikEvaluation = async (metricType: string) => {
     if (!userInput.trim() || !aiOutput.trim()) {
       toast({
         title: "Missing Input",
@@ -189,10 +189,10 @@ export default function EvaluationMetrics() {
             return;
           }
           result = await apiService.evaluateContextPrecision({
-            input: userInput,
+            user_input: userInput,
+            ai_output: aiOutput,
             expected_output: expectedOutput,
             context: context,
-            output: aiOutput,
             sensitivity,
           });
           setResults((prev) => ({ ...prev, opikContextPrecision: result }));
@@ -216,33 +216,30 @@ export default function EvaluationMetrics() {
             return;
           }
           result = await apiService.evaluateContextRecall({
-            input: userInput,
+            user_input: userInput,
+            ai_output: aiOutput,
             expected_output: expectedOutput,
             context: context,
-            output: aiOutput,
             sensitivity,
           });
           setResults((prev) => ({ ...prev, opikContextRecall: result }));
           break;
           
         case "hallucination":
-          {
-            const ctxs = hallucinationContexts.map((c) => c.trim()).filter(Boolean);
-            if (!ctxs.length) {
-              toast({
-                title: "Missing Context",
-                description: "At least one context is required for hallucination evaluation.",
-                variant: "destructive",
-              });
-              return;
-            }
-            result = await apiService.evaluateOpikHallucination({
-              output: aiOutput,
-              context: ctxs.join("\n"),
-              sensitivity,
+          if (!context.trim()) {
+            toast({
+              title: "Missing Context",
+              description: "Context is required for hallucination evaluation.",
+              variant: "destructive",
             });
-            setResults((prev) => ({ ...prev, opikHallucination: result }));
+            return;
           }
+          result = await apiService.evaluateOpikHallucination({
+            input_text: userInput,
+            context: context,
+            output: aiOutput,
+          });
+          setResults((prev) => ({ ...prev, opikHallucination: result }));
           break;
           
         case "moderation":
@@ -257,7 +254,6 @@ export default function EvaluationMetrics() {
           result = await apiService.evaluateUsefulness({
             user_input: userInput,
             ai_output: aiOutput,
-            sensitivity
           });
           setResults(prev => ({ ...prev, opikUsefulness: result }));
           break;
@@ -269,6 +265,7 @@ export default function EvaluationMetrics() {
       });
 
     } catch (error: any) {
+      console.error("OpikEval error:", error);
       toast({
         title: "Evaluation Failed",
         description: error.message || "Failed to run evaluation.",
@@ -291,18 +288,66 @@ export default function EvaluationMetrics() {
 
   const shouldShowAlert = (result: any) => {
     if (!result) return false;
-    const level = result.relevancy_level || result.bias_level || result.faithfulness_level || 
-                  result.hallucination_level || result.privacy_level || result.toxicity_level ||
-                  result.recall_level || result.precision_level || result.usefulness_level || 
-                  result.safety_level || result.faithfulness_level;
+    const level = getResultLevel(result);
     return level === "poor" || level === "fair";
   };
 
   const getResultLevel = (result: any) => {
-    return result.relevancy_level || result.bias_level || result.faithfulness_level || 
-           result.hallucination_level || result.privacy_level || result.toxicity_level ||
-           result.recall_level || result.precision_level || result.usefulness_level || 
-           result.safety_level || result.faithfulness_level || "N/A";
+    if (!result) return "N/A";
+    
+    // Handle different result structures
+    return result.relevancy_level || 
+           result.bias_level || 
+           result.faithfulness_level || 
+           result.hallucination_level || 
+           result.privacy_level || 
+           result.toxicity_level ||
+           result.recall_level || 
+           result.precision_level || 
+           result.usefulness_level || 
+           result.safety_level || 
+           "N/A";
+  };
+
+  const getResultScore = (result: any) => {
+    if (!result) return null;
+    
+    // Handle different score formats
+    if (result.score !== undefined) {
+      // OpikEval scores are already 0-100 or 0-1, normalize to percentage
+      return result.score <= 1 ? Math.round(result.score * 100) : Math.round(result.score);
+    }
+    
+    if (result.answer_relevance_score !== undefined) {
+      return Math.round(result.answer_relevance_score * 100);
+    }
+    
+    if (result.context_precision_score !== undefined) {
+      return Math.round(result.context_precision_score * 100);
+    }
+    
+    if (result.context_recall_score !== undefined) {
+      return Math.round(result.context_recall_score * 100);
+    }
+    
+    // DeepEval percentage scores
+    return result.relevancy_percentage || 
+           result.bias_percentage || 
+           result.faithfulness_percentage || 
+           result.hallucination_percentage ||
+           result.privacy_percentage || 
+           result.toxicity_percentage || 
+           null;
+  };
+
+  const getResultReason = (result: any) => {
+    if (!result) return "";
+    
+    if (Array.isArray(result.reason)) {
+      return result.reason.join(". ");
+    }
+    
+    return result.reason || "";
   };
 
   return (
@@ -352,10 +397,10 @@ export default function EvaluationMetrics() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="context">Retrieval Context (Faithfulness)</Label>
+                  <Label htmlFor="context">Context (For Context-based Metrics)</Label>
                   <Textarea
                     id="context"
-                    placeholder="Enter retrieval context for faithfulness check..."
+                    placeholder="Enter context for evaluation..."
                     value={context}
                     onChange={(e) => setContext(e.target.value)}
                     className="min-h-[80px]"
@@ -363,7 +408,7 @@ export default function EvaluationMetrics() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Hallucination Contexts</Label>
+                  <Label>Hallucination Contexts (DeepEval)</Label>
                   <div className="space-y-2">
                     {hallucinationContexts.map((ctx, idx) => (
                       <div key={idx} className="flex items-start gap-2">
@@ -379,6 +424,7 @@ export default function EvaluationMetrics() {
                         />
                         <Button
                           variant="outline"
+                          size="sm"
                           onClick={() => {
                             const next = hallucinationContexts.filter((_, i) => i !== idx);
                             setHallucinationContexts(next.length ? next : [""]);
@@ -390,6 +436,7 @@ export default function EvaluationMetrics() {
                     ))}
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => setHallucinationContexts([...hallucinationContexts, ""])}
                     >
                       Add Context
@@ -398,7 +445,7 @@ export default function EvaluationMetrics() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="expected-output">Expected Output (Opik Context Precision/Recall)</Label>
+                  <Label htmlFor="expected-output">Expected Output (OpikEval Context Metrics)</Label>
                   <Textarea
                     id="expected-output"
                     placeholder="Enter expected output for precision/recall checks..."
@@ -470,20 +517,13 @@ export default function EvaluationMetrics() {
                                 <Badge className={getLevelColor(getResultLevel(result))}>
                                   {getResultLevel(result)}
                                 </Badge>
-                                {(result.relevancy_percentage !== undefined || 
-                                  result.bias_percentage !== undefined ||
-                                  result.faithfulness_percentage !== undefined ||
-                                  result.hallucination_percentage !== undefined ||
-                                  result.privacy_percentage !== undefined ||
-                                  result.toxicity_percentage !== undefined) && (
+                                {getResultScore(result) !== null && (
                                   <span className="text-sm text-muted-foreground">
-                                    {result.relevancy_percentage || result.bias_percentage || 
-                                     result.faithfulness_percentage || result.hallucination_percentage ||
-                                     result.privacy_percentage || result.toxicity_percentage}%
+                                    {getResultScore(result)}%
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">{result.reason}</p>
+                              <p className="text-xs text-muted-foreground">{getResultReason(result)}</p>
                               
                               {shouldShowAlert(result) && (
                                 <AlertCard
@@ -504,19 +544,19 @@ export default function EvaluationMetrics() {
                   <TabsContent value="opikeval" className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       {[
-                        { key: "answer-relevance", label: "Answer Relevance", result: results.opikAnswerRelevance, api: "evaluateAnswerRelevance" },
-                        { key: "context-precision", label: "Context Precision", result: results.opikContextPrecision, api: "evaluateContextPrecision" },
-                        { key: "context-recall", label: "Context Recall", result: results.opikContextRecall, api: "evaluateContextRecall" },
-                        { key: "hallucination", label: "Hallucination", result: results.opikHallucination, api: "evaluateOpikHallucination" },
-                        { key: "moderation", label: "Moderation", result: results.opikModeration, api: "moderateContent" },
-                        { key: "usefulness", label: "Usefulness", result: results.opikUsefulness, api: "evaluateUsefulness" }
-                      ].map(({ key, label, result, api }) => (
+                        { key: "answer-relevance", label: "Answer Relevance", result: results.opikAnswerRelevance },
+                        { key: "context-precision", label: "Context Precision", result: results.opikContextPrecision },
+                        { key: "context-recall", label: "Context Recall", result: results.opikContextRecall },
+                        { key: "hallucination", label: "Hallucination", result: results.opikHallucination },
+                        { key: "moderation", label: "Moderation", result: results.opikModeration },
+                        { key: "usefulness", label: "Usefulness", result: results.opikUsefulness }
+                      ].map(({ key, label, result }) => (
                         <Card key={key} className="p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="font-medium">{label}</h4>
                             <Button
                               size="sm"
-                              onClick={() => runOpikEvaluation(key, api)}
+                              onClick={() => runOpikEvaluation(key)}
                               disabled={loading}
                             >
                               <Play className="h-3 w-3 mr-1" />
@@ -530,34 +570,13 @@ export default function EvaluationMetrics() {
                                 <Badge className={getLevelColor(getResultLevel(result))}>
                                   {getResultLevel(result)}
                                 </Badge>
-                                {(
-                                  result.score !== undefined ||
-                                  result.answer_relevance_score !== undefined ||
-                                  result.context_precision_score !== undefined ||
-                                  result.context_recall_score !== undefined
-                                ) && (
+                                {getResultScore(result) !== null && (
                                   <span className="text-sm text-muted-foreground">
-                                    {(() => {
-                                      const raw =
-                                        result.score ??
-                                        result.answer_relevance_score ??
-                                        result.context_precision_score ??
-                                        result.context_recall_score;
-                                      const pct = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
-                                      return `${pct}%`;
-                                    })()}
+                                    {getResultScore(result)}%
                                   </span>
                                 )}
                               </div>
-                              {Array.isArray(result.reason) ? (
-                                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
-                                  {result.reason.map((r: string, i: number) => (
-                                    <li key={i}>{r}</li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="text-xs text-muted-foreground">{result.reason}</p>
-                              )}
+                              <p className="text-xs text-muted-foreground">{getResultReason(result)}</p>
                               
                               {shouldShowAlert(result) && (
                                 <AlertCard
@@ -595,6 +614,8 @@ export default function EvaluationMetrics() {
                 onClick={() => {
                   setUserInput("What is artificial intelligence?");
                   setAiOutput("Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans.");
+                  setContext("AI is a branch of computer science that deals with creating intelligent machines.");
+                  setExpectedOutput("AI is a field of computer science focused on creating systems that can perform tasks that typically require human intelligence.");
                 }}
               >
                 Load Sample Data
