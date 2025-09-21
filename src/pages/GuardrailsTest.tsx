@@ -170,111 +170,126 @@ export default function GuardrailsTest() {
   };
 
   const GuardrailCard = ({ 
-    type, 
-    title, 
-    description, 
-    canTestOutput = false 
-  }: { 
-    type: string; 
-    title: string; 
-    description: string; 
-    canTestOutput?: boolean; 
-  }) => {
-    const inputResult = results[`${type}-input`];
-    const outputResult = results[`${type}-output`];
+      type, 
+      title, 
+      description, 
+      canTestOutput = false 
+    }: { 
+      type: string; 
+      title: string; 
+      description: string; 
+      canTestOutput?: boolean; 
+    }) => {
+      const inputResult = results[`${type}-input`];
+      const outputResult = results[`${type}-output`];
 
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>{title}</span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => runGuardrailTest(type, true, false)}
-                disabled={loading}
-              >
-                <Play className="h-3 w-3 mr-1" />
-                Test Input
-              </Button>
-              {canTestOutput && (
+      const renderResultDetails = (result: GuardrailResult, isOutput: boolean = false) => (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+              {isOutput ? "Output Scan Result:" : "Input Scan Result:"}
+            </span>
+            <Badge className={getSafetyBadgeColor(result.safetyLevel)}>
+              {result.safetyLevel}
+            </Badge>
+          </div>
+          
+          <p className="text-xs text-muted-foreground leading-relaxed">{result.reason}</p>
+          
+          {/* Metrics Row */}
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            {result.confidence !== undefined && (
+              <span>Confidence: {Math.round(result.confidence * 100)}%</span>
+            )}
+            {result.riskScore !== undefined && (
+              <span>Risk Score: {result.riskScore.toFixed(1)}</span>
+            )}
+          </div>
+
+          {/* Threats/Categories Detected */}
+          {result.threatsDetected && result.threatsDetected.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Threats/Categories Detected:</p>
+              <div className="flex flex-wrap gap-1">
+                {result.threatsDetected.map((threat, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs">
+                    {threat}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Alert for unsafe results */}
+          {result.safetyLevel === "unsafe" && (
+            <AlertCard
+              type="guardrail"
+              severity={result.riskScore && result.riskScore >= 0.8 ? "high" : "medium"}
+              title={`${title} ${isOutput ? 'Output Risk' : 'Threat Detected'}`}
+              description={result.reason}
+              timestamp="Just now"
+              details={result.threatsDetected}
+            />
+          )}
+
+          {/* Warning for uncertain results */}
+          {result.safetyLevel === "uncertain" && (
+            <div className="p-2 bg-warning/10 border border-warning/20 rounded text-xs">
+              <div className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-warning" />
+                <span className="font-medium text-warning">Uncertain Result</span>
+              </div>
+              <p className="text-muted-foreground mt-1">Review manually for potential issues.</p>
+            </div>
+          )}
+        </div>
+      );
+
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>{title}</span>
+              <div className="flex gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => runGuardrailTest(type, false, true)}
+                  onClick={() => runGuardrailTest(type, true, false)}
                   disabled={loading}
                 >
                   <Play className="h-3 w-3 mr-1" />
-                  Test Output
+                  Test Input
                 </Button>
-              )}
-            </div>
-          </CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Input Results */}
-          {inputResult && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Input Scan Result:</span>
-                <Badge className={getSafetyBadgeColor(inputResult.safetyLevel)}>
-                  {inputResult.safetyLevel}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{inputResult.reason}</p>
-              
-              {inputResult.safetyLevel === "unsafe" && (
-                <AlertCard
-                  type="guardrail"
-                  severity="high"
-                  title={`${title} Threat Detected`}
-                  description={inputResult.reason}
-                  timestamp="Just now"
-                  details={inputResult.threatsDetected}
-                />
-              )}
-              
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                {inputResult.confidence && (
-                  <span>Confidence: {Math.round(inputResult.confidence * 100)}%</span>
-                )}
-                {inputResult.riskScore && (
-                  <span>Risk Score: {inputResult.riskScore.toFixed(2)}</span>
+                {canTestOutput && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => runGuardrailTest(type, false, true)}
+                    disabled={loading}
+                  >
+                    <Play className="h-3 w-3 mr-1" />
+                    Test Output
+                  </Button>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Output Results */}
-          {outputResult && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Output Scan Result:</span>
-                <Badge className={getSafetyBadgeColor(outputResult.safetyLevel)}>
-                  {outputResult.safetyLevel}
-                </Badge>
+            </CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {inputResult && renderResultDetails(inputResult, false)}
+            {outputResult && renderResultDetails(outputResult, true)}
+            
+            {/* Show loading state */}
+            {loading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                Running scan...
               </div>
-              <p className="text-xs text-muted-foreground">{outputResult.reason}</p>
-              
-              {outputResult.safetyLevel === "unsafe" && (
-                <AlertCard
-                  type="guardrail"
-                  severity="high"
-                  title={`${title} Output Risk`}
-                  description={outputResult.reason}
-                  timestamp="Just now"
-                  details={outputResult.threatsDetected}
-                />
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
+            )}
+          </CardContent>
+        </Card>
+      );
+    };
   return (
     <DashboardLayout>
       <div className="space-y-6">
