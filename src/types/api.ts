@@ -278,7 +278,7 @@ export interface OpikContextPrecisionResult {
 
 export interface OpikHallucinationRequest {
   output: string;
-  context: string[];
+  context: string; // single string per API examples
   sensitivity: SensitivityLevel;
 }
 

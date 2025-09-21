@@ -33,6 +33,8 @@ export default function EvaluationMetrics() {
   const [userInput, setUserInput] = useState("");
   const [aiOutput, setAiOutput] = useState("");
   const [context, setContext] = useState("");
+  const [hallucinationContexts, setHallucinationContexts] = useState<string[]>([""]);
+  const [expectedOutput, setExpectedOutput] = useState("");
   const [sensitivity, setSensitivity] = useState<SensitivityLevel>("medium");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<EvaluationResults>({});
@@ -90,21 +92,24 @@ export default function EvaluationMetrics() {
           break;
           
         case "hallucination":
-          if (!context.trim()) {
-            toast({
-              title: "Missing Context", 
-              description: "Context is required for hallucination evaluation.",
-              variant: "destructive",
+          {
+            const ctxs = hallucinationContexts.map((c) => c.trim()).filter(Boolean);
+            if (!ctxs.length) {
+              toast({
+                title: "Missing Context",
+                description: "At least one context is required for hallucination evaluation.",
+                variant: "destructive",
+              });
+              return;
+            }
+            result = await apiService.evaluateHallucination({
+              actual_output: aiOutput,
+              contexts: ctxs,
+              user_input: userInput,
+              sensitivity,
             });
-            return;
+            setResults((prev) => ({ ...prev, hallucination: result }));
           }
-          result = await apiService.evaluateHallucination({
-            actual_output: aiOutput,
-            contexts: [context],
-            user_input: userInput,
-            sensitivity
-          });
-          setResults(prev => ({ ...prev, hallucination: result }));
           break;
           
         case "pii-leakage":
@@ -175,14 +180,22 @@ export default function EvaluationMetrics() {
             });
             return;
           }
+          if (!expectedOutput.trim()) {
+            toast({
+              title: "Missing Expected Output",
+              description: "Expected Output is required for context precision evaluation.",
+              variant: "destructive",
+            });
+            return;
+          }
           result = await apiService.evaluateContextPrecision({
             input: userInput,
-            expected_output: "Expected output based on context",
+            expected_output: expectedOutput,
             context: context,
             output: aiOutput,
-            sensitivity
+            sensitivity,
           });
-          setResults(prev => ({ ...prev, opikContextPrecision: result }));
+          setResults((prev) => ({ ...prev, opikContextPrecision: result }));
           break;
           
         case "context-recall":
@@ -194,31 +207,42 @@ export default function EvaluationMetrics() {
             });
             return;
           }
-          result = await apiService.evaluateContextRecall({
-            input: userInput,
-            expected_output: "Expected output based on context",
-            context: context,
-            output: aiOutput,
-            sensitivity
-          });
-          setResults(prev => ({ ...prev, opikContextRecall: result }));
-          break;
-          
-        case "hallucination":
-          if (!context.trim()) {
+          if (!expectedOutput.trim()) {
             toast({
-              title: "Missing Context",
-              description: "Context is required for hallucination evaluation.",
+              title: "Missing Expected Output",
+              description: "Expected Output is required for context recall evaluation.",
               variant: "destructive",
             });
             return;
           }
-          result = await apiService.evaluateOpikHallucination({
+          result = await apiService.evaluateContextRecall({
+            input: userInput,
+            expected_output: expectedOutput,
+            context: context,
             output: aiOutput,
-            context: [context],
-            sensitivity
+            sensitivity,
           });
-          setResults(prev => ({ ...prev, opikHallucination: result }));
+          setResults((prev) => ({ ...prev, opikContextRecall: result }));
+          break;
+          
+        case "hallucination":
+          {
+            const ctxs = hallucinationContexts.map((c) => c.trim()).filter(Boolean);
+            if (!ctxs.length) {
+              toast({
+                title: "Missing Context",
+                description: "At least one context is required for hallucination evaluation.",
+                variant: "destructive",
+              });
+              return;
+            }
+            result = await apiService.evaluateOpikHallucination({
+              output: aiOutput,
+              context: ctxs.join("\n"),
+              sensitivity,
+            });
+            setResults((prev) => ({ ...prev, opikHallucination: result }));
+          }
           break;
           
         case "moderation":
@@ -328,13 +352,59 @@ export default function EvaluationMetrics() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="context">Context (Optional)</Label>
+                  <Label htmlFor="context">Retrieval Context (Faithfulness)</Label>
                   <Textarea
                     id="context"
-                    placeholder="Enter relevant context for faithfulness/hallucination checks..."
+                    placeholder="Enter retrieval context for faithfulness check..."
                     value={context}
                     onChange={(e) => setContext(e.target.value)}
                     className="min-h-[80px]"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Hallucination Contexts</Label>
+                  <div className="space-y-2">
+                    {hallucinationContexts.map((ctx, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        <Textarea
+                          placeholder={`Context ${idx + 1}`}
+                          value={ctx}
+                          onChange={(e) => {
+                            const next = [...hallucinationContexts];
+                            next[idx] = e.target.value;
+                            setHallucinationContexts(next);
+                          }}
+                          className="min-h-[60px] flex-1"
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const next = hallucinationContexts.filter((_, i) => i !== idx);
+                            setHallucinationContexts(next.length ? next : [""]);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      onClick={() => setHallucinationContexts([...hallucinationContexts, ""])}
+                    >
+                      Add Context
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="expected-output">Expected Output (Opik Context Precision/Recall)</Label>
+                  <Textarea
+                    id="expected-output"
+                    placeholder="Enter expected output for precision/recall checks..."
+                    value={expectedOutput}
+                    onChange={(e) => setExpectedOutput(e.target.value)}
+                    className="min-h-[60px]"
                   />
                 </div>
 
@@ -460,13 +530,34 @@ export default function EvaluationMetrics() {
                                 <Badge className={getLevelColor(getResultLevel(result))}>
                                   {getResultLevel(result)}
                                 </Badge>
-                                {result.score !== undefined && (
+                                {(
+                                  result.score !== undefined ||
+                                  result.answer_relevance_score !== undefined ||
+                                  result.context_precision_score !== undefined ||
+                                  result.context_recall_score !== undefined
+                                ) && (
                                   <span className="text-sm text-muted-foreground">
-                                    {result.score}
+                                    {(() => {
+                                      const raw =
+                                        result.score ??
+                                        result.answer_relevance_score ??
+                                        result.context_precision_score ??
+                                        result.context_recall_score;
+                                      const pct = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+                                      return `${pct}%`;
+                                    })()}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">{result.reason}</p>
+                              {Array.isArray(result.reason) ? (
+                                <ul className="text-xs text-muted-foreground list-disc pl-5 space-y-1">
+                                  {result.reason.map((r: string, i: number) => (
+                                    <li key={i}>{r}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">{result.reason}</p>
+                              )}
                               
                               {shouldShowAlert(result) && (
                                 <AlertCard
@@ -514,6 +605,8 @@ export default function EvaluationMetrics() {
                   setUserInput("");
                   setAiOutput("");
                   setContext("");
+                  setHallucinationContexts([""]);
+                  setExpectedOutput("");
                   setResults({});
                 }}
               >
