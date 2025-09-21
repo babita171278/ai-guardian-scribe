@@ -17,6 +17,55 @@ import {
 import { useState, useEffect } from "react";
 import { EvaluationResult, GuardrailResult } from "@/types/api";
 
+// This style block can be moved to your global CSS file
+const GlobalStyles = () => (
+  <style jsx global>{`
+    @keyframes gradient-animation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .animated-gradient {
+      background: linear-gradient(-45deg, #0f172a, #1e293b, #000000ff, #000000ff);
+      background-size: 400% 400%;
+      animation: gradient-animation 15s ease infinite;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.5s ease-out forwards;
+      opacity: 0; /* Start hidden */
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.7;
+      }
+    }
+    
+    .animate-pulse-live {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+  `}</style>
+);
+
+
 // Mock data for demonstration
 const mockMetrics = [
   {
@@ -103,6 +152,18 @@ const recentEvaluations = [
   },
 ];
 
+// Helper to get glow color for hover effects
+const getGlowClass = (level?: 'excellent' | 'good' | 'fair' | 'poor') => {
+  switch (level) {
+    case 'excellent': return 'hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]';
+    case 'good': return 'hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]';
+    case 'fair': return 'hover:shadow-[0_0_15px_rgba(251,191,36,0.5)]';
+    case 'poor': return 'hover:shadow-[0_0_15px_rgba(239,68,68,0.5)]';
+    default: return 'hover:shadow-primary/20';
+  }
+};
+
+
 export default function Dashboard() {
   const [alerts, setAlerts] = useState(mockAlerts);
 
@@ -112,12 +173,16 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <GlobalStyles />
+      <div className="space-y-6 animated-gradient p-6 rounded-lg">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div 
+          className="flex items-center justify-between animate-fade-in-up"
+          style={{ animationDelay: '100ms' }}
+        >
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Dashboard Overview</h2>
-            <p className="text-muted-foreground">
+            <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard Overview</h2>
+            <p className="text-muted-foreground text-slate-300">
               Monitor your AI system's performance and security in real-time.
             </p>
           </div>
@@ -136,15 +201,24 @@ export default function Dashboard() {
         {/* Metrics Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {mockMetrics.map((metric, index) => (
-            <MetricCard key={index} {...metric} />
+             <div 
+              key={index} 
+              className="animate-fade-in-up transform transition-all duration-300 hover:scale-105"
+              style={{ animationDelay: `${200 + index * 100}ms` }}
+            >
+              <MetricCard {...metric} />
+            </div>
           ))}
         </div>
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Recent Evaluations */}
-          <div className="lg:col-span-2">
-            <Card>
+          <div 
+            className="lg:col-span-2 animate-fade-in-up transform transition-all duration-300 hover:-translate-y-1"
+            style={{ animationDelay: '600ms' }}
+          >
+            <Card className="hover:shadow-lg transition-shadow duration-300">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
@@ -157,7 +231,7 @@ export default function Dashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {recentEvaluations.map((evaluation) => (
-                    <div key={evaluation.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                    <div key={evaluation.id} className={`flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-all duration-300 transform hover:scale-[1.02] ${getGlowClass(evaluation.level)}`}>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium text-sm">{evaluation.metric}</span>
@@ -189,8 +263,11 @@ export default function Dashboard() {
           </div>
 
           {/* Active Alerts */}
-          <div>
-            <Card>
+          <div
+            className="animate-fade-in-up transform transition-all duration-300 hover:-translate-y-1"
+            style={{ animationDelay: '700ms' }}
+          >
+            <Card className="hover:shadow-lg transition-shadow duration-300">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5" />
@@ -207,6 +284,7 @@ export default function Dashboard() {
                       key={index}
                       {...alert}
                       onDismiss={() => dismissAlert(index)}
+                      className="transform transition-all duration-300 hover:scale-105"
                     />
                   ))}
                 </div>
@@ -216,6 +294,10 @@ export default function Dashboard() {
         </div>
 
         {/* System Status */}
+        <div
+            className="animate-fade-in-up"
+            style={{ animationDelay: '800ms' }}
+          >
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -226,21 +308,21 @@ export default function Dashboard() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-success"></div>
+                <div className="h-3 w-3 rounded-full bg-success animate-pulse-live"></div>
                 <div>
                   <p className="font-medium">API Server</p>
                   <p className="text-sm text-muted-foreground">Connected</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-success"></div>
+                <div className="h-3 w-3 rounded-full bg-success animate-pulse-live"></div>
                 <div>
                   <p className="font-medium">Evaluation Engine</p>
                   <p className="text-sm text-muted-foreground">Running</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-success"></div>
+                <div className="h-3 w-3 rounded-full bg-success animate-pulse-live"></div>
                 <div>
                   <p className="font-medium">Guardrails</p>
                   <p className="text-sm text-muted-foreground">Active</p>
@@ -249,6 +331,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </DashboardLayout>
   );
